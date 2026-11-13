@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Direct Audio Call (No ID Required)</title>
+    <title>Direct Audio Call with Mute Control</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #f0f2f5; padding: 20px; }
         .card { background: white; max-width: 400px; margin: auto; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         h2 { color: #1a73e8; margin-bottom: 10px; }
         p { color: #666; font-size: 14px; }
-        button { background: #28a745; color: white; border: none; padding: 14px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; margin: 10px 0; }
+        button { background: #28a745; color: white; border: none; padding: 14px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; margin: 8px 0; }
         button.join { background: #007bff; }
+        button.mute { background: #ffc107; color: #333; display: none; }
+        button.mute.active { background: #dc3545; color: white; }
         button:hover { opacity: 0.9; }
         #status { margin-top: 15px; font-weight: bold; color: #555; }
     </style>
@@ -20,10 +22,13 @@
 
 <div class="card">
     <h2>Direct Voice Call</h2>
-    <p>ID type karanna oune na!<br><b>1st Phone:</b> Start Host obanna.<br><b>2nd Phone:</b> Join Call obanna.</p>
+    <p><b>1st Phone:</b> Start Host obanna.<br><b>2nd Phone:</b> Join Call obanna.</p>
 
     <button onclick="startHost()">Start as Host (1st Phone)</button>
     <button class="join" onclick="startJoin()">Join Call (2nd Phone)</button>
+    
+    <!-- Mute Button (Call eka connect unama witharak penne) -->
+    <button id="mute-btn" class="mute" onclick="toggleMute()">Mute Mic</button>
 
     <div id="status">Status: Ready (Allow Mic)</div>
     <audio id="remote-audio" autoplay playsinline></audio>
@@ -32,9 +37,10 @@
 <script>
     let peer;
     let localStream;
-    const FIXED_ROOM_ID = "audio-room-my-unique-key-9988"; // Fixed room name
+    let isMuted = false;
+    const FIXED_ROOM_ID = "audio-room-my-unique-key-9988";
 
-    // 1. Mulinma Mic permission gannawa
+    // 1. Mic permission gannawa
     navigator.mediaDevices.getUserMedia({ 
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
         video: false 
@@ -47,19 +53,19 @@
         document.getElementById('status').style.color = "red";
     });
 
-    // 2. Host kenek widihata start karana eka
+    // 2. Host Start
     function startHost() {
         if (!localStream) { alert("Please allow Mic permission first!"); return; }
         if (peer) peer.destroy();
         
         document.getElementById('status').innerText = "Status: Hosting... Waiting for other phone.";
-        
         peer = new Peer(FIXED_ROOM_ID);
 
         peer.on('call', call => {
             call.answer(localStream);
             document.getElementById('status').innerText = "Status: Connected (In Call)";
             document.getElementById('status').style.color = "#1a73e8";
+            document.getElementById('mute-btn').style.display = "block"; // Mute button eka pennanawa
             
             call.on('stream', remoteStream => {
                 const audio = document.getElementById('remote-audio');
@@ -75,13 +81,12 @@
         });
     }
 
-    // 3. Join wena kenata (Auto host ta call karanawa)
+    // 3. Join Start
     function startJoin() {
         if (!localStream) { alert("Please allow Mic permission first!"); return; }
         if (peer) peer.destroy();
         
         document.getElementById('status').innerText = "Status: Connecting to Host...";
-        
         peer = new Peer();
 
         peer.on('open', id => {
@@ -90,6 +95,7 @@
             call.on('stream', remoteStream => {
                 document.getElementById('status').innerText = "Status: Connected (In Call)";
                 document.getElementById('status').style.color = "#1a73e8";
+                document.getElementById('mute-btn').style.display = "block"; // Mute button eka pennanawa
                 const audio = document.getElementById('remote-audio');
                 audio.srcObject = remoteStream;
                 audio.play();
@@ -100,6 +106,25 @@
                 document.getElementById('status').style.color = "red";
             });
         });
+    }
+
+    // 4. Mute / Unmute function eka
+    function toggleMute() {
+        if (!localStream) return;
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (!audioTrack) return;
+
+        isMuted = !isMuted;
+        audioTrack.enabled = !isMuted; // Mic audio track eka off/on karanawa
+
+        const muteBtn = document.getElementById('mute-btn');
+        if (isMuted) {
+            muteBtn.innerText = "Unmute Mic";
+            muteBtn.classList.add('active');
+        } else {
+            muteBtn.innerText = "Mute Mic";
+            muteBtn.classList.remove('active');
+        }
     }
 </script>
 
