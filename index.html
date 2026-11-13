@@ -3,88 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phone-to-Phone Audio Call (Jitsi)</title>
+    <title>Direct Phone-to-Phone Audio</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f4f4f9;
-            margin: 0;
-            padding: 20px;
-        }
-        h2 {
-            color: #333;
-        }
-        #meet {
-            width: 100%;
-            height: 500px;
-            margin-top: 20px;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }
-        .btn {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 15px;
-        }
-        .btn:hover {
-            background-color: #218838;
-        }
+        body { font-family: Arial, sans-serif; text-align: center; background: #f0f2f5; padding: 20px; }
+        .card { background: white; max-width: 400px; margin: auto; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h2 { color: #1a73e8; margin-bottom: 10px; }
+        .id-box { background: #e8f0fe; color: #1967d2; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 18px; margin: 15px 0; user-select: all; }
+        input { width: 85%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; text-align: center; }
+        button { background: #28a745; color: white; border: none; padding: 14px 28px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 92%; font-weight: bold; }
+        button:hover { background: #218838; }
+        #status { margin-top: 15px; font-weight: bold; color: #555; }
     </style>
 </head>
 <body>
 
-    <h2>Secure Phone Audio Call</h2>
-    <p>Click the button below to start the live audio stream between devices.</p>
-    
-    <button class="btn" onclick="startCall()">Start Call</button>
+<div class="card">
+    <h2>Direct Voice Call</h2>
+    <p>1. Allow Microphone permission.<br>2. Share your ID or enter the other phone's ID.</p>
 
-    <!-- Jitsi container එක -->
-    <div id="meet"></div>
+    <div>Your Phone ID:</div>
+    <div class="id-box" id="my-id">Generating ID...</div>
 
-    <!-- Jitsi External API Script එක -->
-    <script src='https://8x8.vc/vpaas-magic-cookie-926cb91b900a4db0867cf840fcc4cd76/external_api.js'></script>
-    <script>
-        let api = null;
+    <input type="text" id="peer-id-input" placeholder="Enter Other Phone's ID">
+    <button onclick="startCall()">Call Now</button>
 
-        function startCall() {
-            if (api) {
-                return; // Call එක অলরেඩි run වෙනවනම්
-            }
+    <div id="status">Status: Waiting...</div>
+    <audio id="remote-audio" autoplay playsinline></audio>
+</div>
 
-            const domain = "8x8.vc"; // Free public Jitsi domain
-            const options = {
-                roomName: "AdwatcherProSecureAudioRoom12345", // Phone දෙකෙන්ම එකම room name එක වෙන්න ඕනේ
-                width: "100%",
-                height: "100%",
-                parentNode: document.querySelector('#meet'),
-                userInfo: {
-                    displayName: "Mobile User"
-                },
-                configOverwrite: {
-                    startWithAudioMuted: false,
-                    startWithVideoMuted: true // අතවශ්‍ය නැත්නම් Video බ්ලොක් කරලා Audio විතරක් තියාගන්න (Voice call එකකට)
-                },
-                interfaceConfigOverwrite: {
-                    // අවශ්‍ය නැති UI buttons ඉවත් කරගන්න පුළුවන්
-                    TOOLBAR_BUTTONS: [
-                        'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
-                        'fodeviceselection', 'hangup', 'profile', 'chat', 'settings',
-                        'raisehand', 'videoquality', 'filmstrip', 'stats', 'shortcuts',
-                        'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone'
-                    ]
-                }
-            };
+<script>
+    // 4-digit simple random ID ekak hadagannawa lesiyen type karanna
+    const shortId = "call-" + Math.floor(1000 + Math.random() * 9000);
+    const peer = new Peer(shortId);
+    let localStream;
 
-            api = new JitsiMeetExternalAPI(domain, options);
+    // 1. Mulinma Mic permission gannawa (Echo cancellation ekka)
+    navigator.mediaDevices.getUserMedia({ 
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
+        video: false 
+    }).then(stream => {
+        localStream = stream;
+        document.getElementById('status').innerText = "Status: Mic Ready!";
+        document.getElementById('status').style.color = "green";
+    }).catch(err => {
+        document.getElementById('status').innerText = "Error: Please allow Mic permission!";
+        document.getElementById('status').style.color = "red";
+    });
+
+    // 2. Peer ID eka hadunama screen eke pennanawa
+    peer.on('open', id => {
+        document.getElementById('my-id').innerText = id;
+    });
+
+    // 3. Anith phone eken call ekak awama auto answer wenawa
+    peer.on('call', call => {
+        call.answer(localStream);
+        document.getElementById('status').innerText = "Status: Connected (In Call)";
+        document.getElementById('status').style.color = "#1a73e8";
+        
+        call.on('stream', remoteStream => {
+            const audio = document.getElementById('remote-audio');
+            audio.srcObject = remoteStream;
+            audio.play();
+        });
+    });
+
+    // 4. Anith phone ekata call karana function eka
+    function startCall() {
+        const remoteId = document.getElementById('peer-id-input').value.trim();
+        if (!remoteId) {
+            alert("Anith phone eke ID eka type karanna!");
+            return;
         }
-    </script>
+        document.getElementById('status').innerText = "Status: Calling...";
+        const call = peer.call(remoteId, localStream);
+        
+        call.on('stream', remoteStream => {
+            document.getElementById('status').innerText = "Status: Connected (In Call)";
+            document.getElementById('status').style.color = "#1a73e8";
+            const audio = document.getElementById('remote-audio');
+            audio.srcObject = remoteStream;
+            audio.play();
+        });
+    }
+</script>
 
 </body>
 </html>
