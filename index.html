@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Direct Phone-to-Phone Audio</title>
+    <title>Direct Audio Call (No ID Required)</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #f0f2f5; padding: 20px; }
         .card { background: white; max-width: 400px; margin: auto; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         h2 { color: #1a73e8; margin-bottom: 10px; }
-        .id-box { background: #e8f0fe; color: #1967d2; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 18px; margin: 15px 0; user-select: all; }
-        input { width: 85%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; text-align: center; }
-        button { background: #28a745; color: white; border: none; padding: 14px 28px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 92%; font-weight: bold; }
-        button:hover { background: #218838; }
+        p { color: #666; font-size: 14px; }
+        button { background: #28a745; color: white; border: none; padding: 14px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; margin: 10px 0; }
+        button.join { background: #007bff; }
+        button:hover { opacity: 0.9; }
         #status { margin-top: 15px; font-weight: bold; color: #555; }
     </style>
 </head>
@@ -20,71 +20,85 @@
 
 <div class="card">
     <h2>Direct Voice Call</h2>
-    <p>1. Allow Microphone permission.<br>2. Share your ID or enter the other phone's ID.</p>
+    <p>ID type karanna oune na!<br><b>1st Phone:</b> Start Host obanna.<br><b>2nd Phone:</b> Join Call obanna.</p>
 
-    <div>Your Phone ID:</div>
-    <div class="id-box" id="my-id">Generating ID...</div>
+    <button onclick="startHost()">Start as Host (1st Phone)</button>
+    <button class="join" onclick="startJoin()">Join Call (2nd Phone)</button>
 
-    <input type="text" id="peer-id-input" placeholder="Enter Other Phone's ID">
-    <button onclick="startCall()">Call Now</button>
-
-    <div id="status">Status: Waiting...</div>
+    <div id="status">Status: Ready (Allow Mic)</div>
     <audio id="remote-audio" autoplay playsinline></audio>
 </div>
 
 <script>
-    // 4-digit simple random ID ekak hadagannawa lesiyen type karanna
-    const shortId = "call-" + Math.floor(1000 + Math.random() * 9000);
-    const peer = new Peer(shortId);
+    let peer;
     let localStream;
+    const FIXED_ROOM_ID = "audio-room-my-unique-key-9988"; // Fixed room name
 
-    // 1. Mulinma Mic permission gannawa (Echo cancellation ekka)
+    // 1. Mulinma Mic permission gannawa
     navigator.mediaDevices.getUserMedia({ 
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
         video: false 
     }).then(stream => {
         localStream = stream;
-        document.getElementById('status').innerText = "Status: Mic Ready!";
+        document.getElementById('status').innerText = "Status: Mic Ready! Choose Host or Join.";
         document.getElementById('status').style.color = "green";
     }).catch(err => {
         document.getElementById('status').innerText = "Error: Please allow Mic permission!";
         document.getElementById('status').style.color = "red";
     });
 
-    // 2. Peer ID eka hadunama screen eke pennanawa
-    peer.on('open', id => {
-        document.getElementById('my-id').innerText = id;
-    });
-
-    // 3. Anith phone eken call ekak awama auto answer wenawa
-    peer.on('call', call => {
-        call.answer(localStream);
-        document.getElementById('status').innerText = "Status: Connected (In Call)";
-        document.getElementById('status').style.color = "#1a73e8";
+    // 2. Host kenek widihata start karana eka
+    function startHost() {
+        if (!localStream) { alert("Please allow Mic permission first!"); return; }
+        if (peer) peer.destroy();
         
-        call.on('stream', remoteStream => {
-            const audio = document.getElementById('remote-audio');
-            audio.srcObject = remoteStream;
-            audio.play();
-        });
-    });
-
-    // 4. Anith phone ekata call karana function eka
-    function startCall() {
-        const remoteId = document.getElementById('peer-id-input').value.trim();
-        if (!remoteId) {
-            alert("Anith phone eke ID eka type karanna!");
-            return;
-        }
-        document.getElementById('status').innerText = "Status: Calling...";
-        const call = peer.call(remoteId, localStream);
+        document.getElementById('status').innerText = "Status: Hosting... Waiting for other phone.";
         
-        call.on('stream', remoteStream => {
+        peer = new Peer(FIXED_ROOM_ID);
+
+        peer.on('call', call => {
+            call.answer(localStream);
             document.getElementById('status').innerText = "Status: Connected (In Call)";
             document.getElementById('status').style.color = "#1a73e8";
-            const audio = document.getElementById('remote-audio');
-            audio.srcObject = remoteStream;
-            audio.play();
+            
+            call.on('stream', remoteStream => {
+                const audio = document.getElementById('remote-audio');
+                audio.srcObject = remoteStream;
+                audio.play();
+            });
+        });
+
+        peer.on('error', err => {
+            if(err.type === 'unavailable-id') {
+                alert("Host already active! Use 'Join Call' on this phone instead.");
+            }
+        });
+    }
+
+    // 3. Join wena kenata (Auto host ta call karanawa)
+    function startJoin() {
+        if (!localStream) { alert("Please allow Mic permission first!"); return; }
+        if (peer) peer.destroy();
+        
+        document.getElementById('status').innerText = "Status: Connecting to Host...";
+        
+        peer = new Peer();
+
+        peer.on('open', id => {
+            const call = peer.call(FIXED_ROOM_ID, localStream);
+            
+            call.on('stream', remoteStream => {
+                document.getElementById('status').innerText = "Status: Connected (In Call)";
+                document.getElementById('status').style.color = "#1a73e8";
+                const audio = document.getElementById('remote-audio');
+                audio.srcObject = remoteStream;
+                audio.play();
+            });
+
+            call.on('error', err => {
+                document.getElementById('status').innerText = "Status: Connection failed. Is Host started?";
+                document.getElementById('status').style.color = "red";
+            });
         });
     }
 </script>
