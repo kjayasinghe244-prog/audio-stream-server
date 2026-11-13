@@ -3,57 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phone Audio Stream</title>
-    <!-- Socket.io client script -->
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <title>Phone-to-Phone Audio Call (Jitsi)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+        h2 {
+            color: #333;
+        }
+        #meet {
+            width: 100%;
+            height: 500px;
+            margin-top: 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        .btn:hover {
+            background-color: #218838;
+        }
+    </style>
 </head>
-<body style="text-align: center; font-family: sans-serif; margin-top: 50px;">
-    <h2>Phone-to-Phone Audio Stream</h2>
-    <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: green; color: white; border: none; border-radius: 5px;">Start Audio</button>
-    <p id="status" style="margin-top: 20px; color: gray;">Status: Disconnected</p>
+<body>
 
+    <h2>Secure Phone Audio Call</h2>
+    <p>Click the button below to start the live audio stream between devices.</p>
+    
+    <button class="btn" onclick="startCall()">Start Call</button>
+
+    <!-- Jitsi container එක -->
+    <div id="meet"></div>
+
+    <!-- Jitsi External API Script එක -->
+    <script src='https://8x8.vc/vpaas-magic-cookie-926cb91b900a4db0867cf840fcc4cd76/external_api.js'></script>
     <script>
-        // *** METHANATA OYAGE RENDER LIVE URL EKA DANNA ***
-        const SERVER_URL = "https://audio-stream-server-jzpp.onrender.com"; 
-        const socket = io(SERVER_URL);
+        let api = null;
 
-        const startBtn = document.getElementById('startBtn');
-        const statusText = document.getElementById('status');
-
-        socket.on('connect', () => {
-            statusText.innerText = "Status: Connected to Server!";
-            statusText.style.color = "green";
-        });
-
-        startBtn.onclick = async () => {
-            try {
-                // Phone microphone eka access karanna
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        // Audio chunks server ekata emit karanawa
-                        socket.emit('audio-stream', event.data);
-                    }
-                };
-
-                // Every 250ms audio chunk ekak send karanawa
-                mediaRecorder.start(250);
-                startBtn.innerText = "Streaming Active...";
-                startBtn.style.background = "orange";
-            } catch (err) {
-                alert("Microphone permission error: " + err);
+        function startCall() {
+            if (api) {
+                return; // Call එක অলরেඩි run වෙනවනම්
             }
-        };
 
-        // Server eken anith kenagen ena audio chunks receive karala play karanna
-        socket.on('audio-stream', (audioChunk) => {
-            const blob = new Blob([audioChunk], { type: 'audio/webm' });
-            const audioUrl = URL.createObjectURL(blob);
-            const audio = new Audio(audioUrl);
-            audio.play().catch(e => console.log("Play error:", e));
-        });
+            const domain = "8x8.vc"; // Free public Jitsi domain
+            const options = {
+                roomName: "AdwatcherProSecureAudioRoom12345", // Phone දෙකෙන්ම එකම room name එක වෙන්න ඕනේ
+                width: "100%",
+                height: "100%",
+                parentNode: document.querySelector('#meet'),
+                userInfo: {
+                    displayName: "Mobile User"
+                },
+                configOverwrite: {
+                    startWithAudioMuted: false,
+                    startWithVideoMuted: true // අතවශ්‍ය නැත්නම් Video බ්ලොක් කරලා Audio විතරක් තියාගන්න (Voice call එකකට)
+                },
+                interfaceConfigOverwrite: {
+                    // අවශ්‍ය නැති UI buttons ඉවත් කරගන්න පුළුවන්
+                    TOOLBAR_BUTTONS: [
+                        'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
+                        'fodeviceselection', 'hangup', 'profile', 'chat', 'settings',
+                        'raisehand', 'videoquality', 'filmstrip', 'stats', 'shortcuts',
+                        'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone'
+                    ]
+                }
+            };
+
+            api = new JitsiMeetExternalAPI(domain, options);
+        }
     </script>
+
 </body>
 </html>
