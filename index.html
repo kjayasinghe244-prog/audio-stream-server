@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phone Audio Stream</title>
+    <!-- Socket.io client script -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body style="text-align: center; font-family: sans-serif; margin-top: 50px;">
+    <h2>Phone-to-Phone Audio Stream</h2>
+    <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: green; color: white; border: none; border-radius: 5px;">Start Audio</button>
+    <p id="status" style="margin-top: 20px; color: gray;">Status: Disconnected</p>
+
+    <script>
+        // *** METHANATA OYAGE RENDER LIVE URL EKA DANNA ***
+        const SERVER_URL = "https://audio-stream-server-jzpp.onrender.com"; 
+        const socket = io(SERVER_URL);
+
+        const startBtn = document.getElementById('startBtn');
+        const statusText = document.getElementById('status');
+
+        socket.on('connect', () => {
+            statusText.innerText = "Status: Connected to Server!";
+            statusText.style.color = "green";
+        });
+
+        startBtn.onclick = async () => {
+            try {
+                // Phone microphone eka access karanna
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        // Audio chunks server ekata emit karanawa
+                        socket.emit('audio-stream', event.data);
+                    }
+                };
+
+                // Every 250ms audio chunk ekak send karanawa
+                mediaRecorder.start(250);
+                startBtn.innerText = "Streaming Active...";
+                startBtn.style.background = "orange";
+            } catch (err) {
+                alert("Microphone permission error: " + err);
+            }
+        };
+
+        // Server eken anith kenagen ena audio chunks receive karala play karanna
+        socket.on('audio-stream', (audioChunk) => {
+            const blob = new Blob([audioChunk], { type: 'audio/webm' });
+            const audioUrl = URL.createObjectURL(blob);
+            const audio = new Audio(audioUrl);
+            audio.play().catch(e => console.log("Play error:", e));
+        });
+    </script>
+</body>
+</html>
